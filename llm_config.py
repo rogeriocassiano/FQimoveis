@@ -2,17 +2,18 @@
 Configuração centralizada de provedores de LLM e embeddings.
 
 Permite alternar entre execução 100% local (Ollama) e provedores em nuvem
-compatíveis com a API da OpenAI (OpenAI, Groq, etc.), sem exigir chave de API
-para embeddings (usa HuggingFace/sentence-transformers localmente).
+(OpenAI, Groq, Google Gemini, etc.), sem exigir chave de API para embeddings
+(usa HuggingFace/sentence-transformers localmente).
 
 Variáveis de ambiente:
     EMBEDDING_PROVIDER  = "ollama" (padrão) | "huggingface"
-    LLM_PROVIDER         = "ollama" (padrão) | "openai"
+    LLM_PROVIDER         = "ollama" (padrão) | "openai" | "gemini"
 
     OLLAMA_BASE_URL, OLLAMA_EMBEDDING_MODEL, OLLAMA_CHAT_MODEL
     HUGGINGFACE_EMBEDDING_MODEL (padrão: sentence-transformers/all-MiniLM-L6-v2)
     OPENAI_API_KEY, OPENAI_BASE_URL (opcional, para endpoints compatíveis
         como Groq), OPENAI_MODEL (padrão: gpt-4o-mini)
+    GOOGLE_API_KEY, GOOGLE_MODEL (padrão: gemini-1.5-flash)
 """
 
 import os
@@ -54,6 +55,21 @@ def get_chat_llm(temperature: float = 0.2):
             temperature=temperature,
         )
 
+    if provider == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "LLM_PROVIDER=gemini, mas GOOGLE_API_KEY não foi configurada. "
+                "Adicione a chave no .env ou nos Secrets do Streamlit Cloud."
+            )
+        return ChatGoogleGenerativeAI(
+            model=os.getenv("GOOGLE_MODEL", "gemini-1.5-flash"),
+            google_api_key=api_key,
+            temperature=temperature,
+        )
+
     from langchain_ollama import ChatOllama
 
     return ChatOllama(
@@ -72,7 +88,12 @@ def ambiente_configurado() -> tuple[bool, str]:
             return False, "LLM_PROVIDER=openai, mas OPENAI_API_KEY não foi encontrada no ambiente."
         return True, ""
 
+    if llm_provider == "gemini":
+        if not os.getenv("GOOGLE_API_KEY"):
+            return False, "LLM_PROVIDER=gemini, mas GOOGLE_API_KEY não foi encontrada no ambiente."
+        return True, ""
+
     if not os.getenv("OLLAMA_BASE_URL"):
-        return False, "OLLAMA_BASE_URL não encontrado no ambiente. Configure .env ou defina LLM_PROVIDER=openai."
+        return False, "OLLAMA_BASE_URL não encontrado no ambiente. Configure .env ou defina LLM_PROVIDER=openai|gemini."
 
     return True, ""
