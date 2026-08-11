@@ -64,6 +64,58 @@ def adicionar_fonte_web(url: str, nome_arquivo: str | None = None) -> str:
     return str(caminho)
 
 
+def extrair_texto_pdf(conteudo_bytes: bytes) -> str:
+    """Extrai texto de um PDF a partir dos bytes do arquivo."""
+    from io import BytesIO
+    from pypdf import PdfReader
+
+    leitor = PdfReader(BytesIO(conteudo_bytes))
+    paginas = []
+    for pagina in leitor.pages:
+        texto_pagina = pagina.extract_text() or ""
+        if texto_pagina.strip():
+            paginas.append(texto_pagina)
+    return "\n\n".join(paginas)
+
+
+def adicionar_fonte_pdf(nome_arquivo: str, conteudo_bytes: bytes) -> str:
+    """Extrai texto de um PDF enviado, salva em transcricoes/ e retorna o caminho salvo."""
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    texto = extrair_texto_pdf(conteudo_bytes)
+    if not texto.strip():
+        raise ValueError("Não foi possível extrair texto do PDF (pode ser um PDF escaneado sem OCR).")
+
+    nome_base = re.sub(r"[^\w\-_.]", "_", Path(nome_arquivo).stem)
+    nome_final = f"{nome_base}.txt"
+
+    caminho = TRANSCRICOES_DIR / nome_final
+    prefixo = f"Fonte: PDF ({nome_arquivo})\n\n"
+    caminho.write_text(prefixo + texto, encoding="utf-8")
+
+    supabase_client.salvar_transcricao(nome_final, prefixo + texto, None)
+
+    return str(caminho)
+
+
+def adicionar_fonte_texto(titulo: str, conteudo: str) -> str:
+    """Salva um texto livre (anotação, trecho de livro, etc.) em transcricoes/."""
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    nome_base = re.sub(r"[^\w\-_.]", "_", titulo.strip()) or "anotacao"
+    nome_final = f"{nome_base}.txt"
+
+    caminho = TRANSCRICOES_DIR / nome_final
+    prefixo = f"Fonte: Texto livre ({titulo})\n\n"
+    caminho.write_text(prefixo + conteudo, encoding="utf-8")
+
+    supabase_client.salvar_transcricao(nome_final, prefixo + conteudo, None)
+
+    return str(caminho)
+
+
 def anonimizar(texto: str) -> str:
     """Aplica anonimização básica de dados sensíveis no texto."""
     # CPF: 000.000.000-00 ou 00000000000

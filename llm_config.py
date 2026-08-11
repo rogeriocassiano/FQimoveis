@@ -6,7 +6,7 @@ Permite alternar entre execução 100% local (Ollama) e provedores em nuvem
 (usa HuggingFace/sentence-transformers localmente).
 
 Variáveis de ambiente:
-    EMBEDDING_PROVIDER  = "ollama" (padrão) | "huggingface"
+    EMBEDDING_PROVIDER  = "ollama" (padrão) | "huggingface" | "gemini"
     LLM_PROVIDER         = "ollama" (padrão) | "openai" | "gemini"
 
     OLLAMA_BASE_URL, OLLAMA_EMBEDDING_MODEL, OLLAMA_CHAT_MODEL
@@ -14,6 +14,11 @@ Variáveis de ambiente:
     OPENAI_API_KEY, OPENAI_BASE_URL (opcional, para endpoints compatíveis
         como Groq), OPENAI_MODEL (padrão: gpt-4o-mini)
     GOOGLE_API_KEY, GOOGLE_MODEL (padrão: gemini-1.5-flash)
+    GOOGLE_EMBEDDING_MODEL (padrão: models/text-embedding-004)
+
+    Observação: no Streamlit Community Cloud, prefira EMBEDDING_PROVIDER=gemini
+    em vez de huggingface, pois huggingface/sentence-transformers depende de
+    torch/torchvision, que podem falhar no ambiente do Cloud.
 """
 
 import os
@@ -27,6 +32,18 @@ def get_embeddings():
 
         modelo = os.getenv("HUGGINGFACE_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         return HuggingFaceEmbeddings(model_name=modelo)
+
+    if provider == "gemini":
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "EMBEDDING_PROVIDER=gemini, mas GOOGLE_API_KEY não foi configurada. "
+                "Adicione a chave no .env ou nos Secrets do Streamlit Cloud."
+            )
+        modelo = os.getenv("GOOGLE_EMBEDDING_MODEL", "models/text-embedding-004")
+        return GoogleGenerativeAIEmbeddings(model=modelo, google_api_key=api_key)
 
     from langchain_ollama import OllamaEmbeddings
 

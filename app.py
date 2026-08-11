@@ -7,7 +7,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from cli import carregar_base_vetorial, responder_com_fontes
-from ingest import adicionar_fonte_web, processar_e_indexar
+from ingest import adicionar_fonte_web, adicionar_fonte_pdf, adicionar_fonte_texto, processar_e_indexar
 from llm_config import ambiente_configurado
 import supabase_client
 
@@ -18,7 +18,7 @@ TRANSCRICOES_DIR = Path("./transcricoes")
 CHROMA_DIR = Path("./chroma_db")
 
 DEFAULT_TEAM = [
-    {"id": "gerente", "name": "Gerente de Vendas", "role": "Diário de Operações", "color": "#FF6B6B"},
+    {"id": "gerente", "name": "Meu Assistente", "role": "Base de Conhecimento Pessoal", "color": "#FF6B6B"},
 ]
 
 
@@ -65,7 +65,7 @@ def inicializar_estado():
 
 inicializar_estado()
 
-st.set_page_config(page_title="FQ Imóveis | Diário de Operações", page_icon="🏠", layout="wide")
+st.set_page_config(page_title="Meu Assistente | Base de Conhecimento", page_icon="🧠", layout="wide")
 
 _ok, _erro = ambiente_configurado()
 if not _ok:
@@ -119,13 +119,13 @@ with st.sidebar:
 
     st.divider()
     st.markdown("**Como usar**")
-    st.markdown("1. Coloque arquivos `.txt` com registros do dia em `transcricoes/`.")
+    st.markdown("1. Na aba **Fontes**, adicione sites, PDFs ou textos livres.")
     st.markdown("2. Clique em **Reindexar transcrições**.")
-    st.markdown("3. Use a aba **Assistente** para consultar o diário.")
+    st.markdown("3. Use a aba **Assistente** para conversar com o seu contexto.")
 
 # --- Área principal ---
-st.title("Diário de Operações - FQ Imóveis")
-st.caption("Registro e consulta do histórico de transcrições do Gerente de Vendas")
+st.title("Meu Assistente com Contexto Próprio")
+st.caption("Monte sua base de conhecimento com sites, PDFs, livros e anotações — e converse com ela")
 
 tab_chat, tab_fontes, tab_painel = st.tabs(["💬 Assistente", "📄 Fontes", "📊 Visão Geral"])
 
@@ -134,7 +134,7 @@ with tab_chat:
     mensagens = st.session_state.member_messages.setdefault(membro["id"], [])
 
     if not mensagens:
-        st.info(f"Olá, {membro['name']}! Faça uma pergunta sobre o histórico de transcrições.")
+        st.info("Olá! Faça uma pergunta sobre o conteúdo que você adicionou na aba **Fontes**.")
 
     for mensagem in mensagens:
         with st.chat_message(mensagem["role"]):
@@ -178,19 +178,45 @@ with tab_chat:
 
 # --- Aba Fontes ---
 with tab_fontes:
-    st.subheader("Adicionar fonte da web")
-    with st.form("form_adicionar_url", clear_on_submit=True):
-        url_input = st.text_input("URL do site", placeholder="https://exemplo.com/pagina")
-        nome_input = st.text_input("Nome do arquivo (opcional)", placeholder="ex: mercado_imobiliario")
-        enviar = st.form_submit_button("Buscar e adicionar")
+    st.subheader("Adicionar contexto ao assistente")
+    tab_web, tab_pdf, tab_texto = st.tabs(["🌐 Site", "📄 PDF / Livro", "📝 Texto livre"])
 
-    if enviar and url_input:
-        with st.spinner("Buscando conteúdo da URL..."):
+    with tab_web:
+        with st.form("form_adicionar_url", clear_on_submit=True):
+            url_input = st.text_input("URL do site", placeholder="https://exemplo.com/pagina")
+            nome_input = st.text_input("Nome do arquivo (opcional)", placeholder="ex: mercado_imobiliario")
+            enviar = st.form_submit_button("Buscar e adicionar")
+
+        if enviar and url_input:
+            with st.spinner("Buscando conteúdo da URL..."):
+                try:
+                    caminho_salvo = adicionar_fonte_web(url_input, nome_input or None)
+                    st.success(f"Conteúdo salvo em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-lo na base.")
+                except Exception as e:
+                    st.error(f"Erro ao buscar URL: {e}")
+
+    with tab_pdf:
+        arquivo_pdf = st.file_uploader("Envie um PDF (livro, apostila, manual, etc.)", type=["pdf"])
+        if arquivo_pdf is not None and st.button("Adicionar PDF", use_container_width=True):
+            with st.spinner("Extraindo texto do PDF..."):
+                try:
+                    caminho_salvo = adicionar_fonte_pdf(arquivo_pdf.name, arquivo_pdf.getvalue())
+                    st.success(f"Conteúdo salvo em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-lo na base.")
+                except Exception as e:
+                    st.error(f"Erro ao processar PDF: {e}")
+
+    with tab_texto:
+        with st.form("form_adicionar_texto", clear_on_submit=True):
+            titulo_texto = st.text_input("Título / identificação", placeholder="ex: anotacoes_reuniao")
+            conteudo_texto = st.text_area("Conteúdo", placeholder="Cole aqui um trecho de livro, anotação ou qualquer texto...", height=200)
+            enviar_texto = st.form_submit_button("Adicionar texto")
+
+        if enviar_texto and titulo_texto and conteudo_texto:
             try:
-                caminho_salvo = adicionar_fonte_web(url_input, nome_input or None)
+                caminho_salvo = adicionar_fonte_texto(titulo_texto, conteudo_texto)
                 st.success(f"Conteúdo salvo em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-lo na base.")
             except Exception as e:
-                st.error(f"Erro ao buscar URL: {e}")
+                st.error(f"Erro ao salvar texto: {e}")
 
     st.divider()
 
@@ -222,7 +248,7 @@ with tab_fontes:
 
 # --- Aba Painel ---
 with tab_painel:
-    st.subheader("Visão geral do diário")
+    st.subheader("Visão geral da base de conhecimento")
 
     total_mensagens = sum(len(msgs) for msgs in st.session_state.member_messages.values())
     total_transcricoes = len(listar_transcricoes())
