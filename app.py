@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from cli import carregar_base_vetorial, responder_com_fontes
 from ingest import adicionar_fonte_web, processar_e_indexar
 from llm_config import ambiente_configurado
+import supabase_client
 
 load_dotenv()
 
@@ -49,12 +50,17 @@ def listar_transcricoes() -> list[Path]:
 
 
 def inicializar_estado():
-    if "member_messages" not in st.session_state:
-        st.session_state.member_messages = {}
-    if "last_indexed" not in st.session_state:
-        st.session_state.last_indexed = None
     if "team" not in st.session_state:
         st.session_state.team = carregar_equipe()
+    if "member_messages" not in st.session_state:
+        st.session_state.member_messages = {}
+        if supabase_client.ativo():
+            for membro in st.session_state.team:
+                st.session_state.member_messages[membro["id"]] = supabase_client.carregar_mensagens(membro["id"])
+    if "last_indexed" not in st.session_state:
+        st.session_state.last_indexed = None
+    if supabase_client.ativo():
+        supabase_client.sincronizar_transcricoes_locais()
 
 
 inicializar_estado()
@@ -94,6 +100,7 @@ with st.sidebar:
         st.success("Reindexação concluída.")
 
     if st.button("Limpar histórico", use_container_width=True):
+        supabase_client.limpar_mensagens(membro["id"])
         st.session_state.member_messages[membro["id"]] = []
         st.rerun()
 
@@ -142,6 +149,7 @@ with tab_chat:
 
     if pergunta:
         mensagens.append({"role": "user", "content": pergunta})
+        supabase_client.salvar_mensagem(membro["id"], "user", pergunta)
         with st.chat_message("user"):
             st.markdown(pergunta)
 
@@ -159,6 +167,7 @@ with tab_chat:
                     fontes = []
 
         mensagens.append({"role": "assistant", "content": resposta, "fontes": fontes})
+        supabase_client.salvar_mensagem(membro["id"], "assistant", resposta, fontes)
         with st.chat_message("assistant"):
             st.markdown(resposta)
             if fontes:

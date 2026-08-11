@@ -11,5 +11,6 @@ pydantic
 requests
 beautifulsoup4
 sentence-transformers
+supabase
 streamlit==1.61.1
 starlette==1.3.1

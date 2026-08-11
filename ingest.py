@@ -10,6 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
 from llm_config import get_embeddings
+import supabase_client
 
 load_dotenv()
 
@@ -58,6 +59,8 @@ def adicionar_fonte_web(url: str, nome_arquivo: str | None = None) -> str:
     prefixo = f"Fonte: {url}\nTítulo: {titulo}\n\n"
     caminho.write_text(prefixo + conteudo, encoding="utf-8")
 
+    supabase_client.salvar_transcricao(nome_arquivo, prefixo + conteudo, url)
+
     return str(caminho)
 
 
@@ -98,8 +101,8 @@ def carregar_documentos(caminhos: list[Path]) -> list[str]:
 def processar_e_indexar():
     if not TRANSCRICOES_DIR.exists():
         TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
-        print(f"Diretório {TRANSCRICOES_DIR} criado. Adicione arquivos .txt e execute novamente.")
-        return
+
+    supabase_client.sincronizar_transcricoes_locais()
 
     arquivos = listar_arquivos_txt(TRANSCRICOES_DIR)
     if not arquivos:
