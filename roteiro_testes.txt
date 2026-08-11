@@ -1,0 +1,73 @@
+ROTEIRO DE TESTES - Assistente Pessoal Executivo FQ Imoveis
+============================================================
+
+Antes de comecar, certifique-se de:
+1. Ter o .env configurado com a chave/URL correta.
+2. Ter colocado transcrioes em transcricoes/.
+3. Executar "reindexar" no cli.py para gerar a base vetorial.
+
+PASSO 1 - INICIAR O ASSISTENTE
+------------------------------
+python cli.py
+
+No terminal, voce vera o prompt "Voce: ".
+
+PASSO 2 - TESTE DE CONHECIMENTO DIRETO
+--------------------------------------
+Pergunta 1: "Qual a diferenca entre cliente que desistiu e cliente que adiou?"
+
+Esperado: O assistente deve responder com base no exemplo, explicando que cliente
+que adiou precisa ser acompanhado com horario marcado e mensagem de confirmacao.
+
+Pergunta 2: "O que o gerente diz quando o cliente acha o metro quadrado mais barato?"
+
+Esperado: A resposta deve citar que a FQ vende seguranca, nao barato, e que o
+mais barato pode ter prazo de entrega alongado, obra parada ou condominio mal
+administrado.
+
+PASSO 3 - TESTE DE RASCUNHO DE MENSAGEM
+---------------------------------------
+Pergunta 3: "Rascunhe uma mensagem de cobranca para o Joao, no estilo do gerente."
+
+Esperado: Mensagem direta, focada em acao imediata, tom comercial e sem ser grosseira.
+
+Pergunta 4: "Rascunhe uma resposta para um cliente que quer adiar a decisao."
+
+Esperado: Resposta curta, com urgencia controlada, oferecendo agendamento e opcoes
+adicionais de imoveis.
+
+PASSO 4 - TESTE DE TOMADA DE DECISAO
+------------------------------------
+Pergunta 5: "Como o gerente lida com objecao de preco?"
+
+Esperado: Usar comparativo, valorizacao do bairro, qualidade da construtora e
+historico de entrega.
+
+Pergunta 6: "O gerente prefere quantos leads ativos por corretor?"
+
+Esperado: Se nao constar na base, o assistente deve dizer que nao ha registro
+prevo e sugerir um padrao FQ Imoveis.
+
+PASSO 5 - COMANDOS DO SISTEMA
+-----------------------------
+Comando: "reindexar"
+Esperado: O sistema deve processar todos os arquivos .txt de transcricoes/ e
+atualizar a base vetorial em chroma_db/.
+
+Comando: "sair"
+Esperado: O sistema encerra com a mensagem "Encerrando. Ate logo!".
+
+PASSO 6 - TESTE DE ANONIMIZACAO
+-------------------------------
+Adicione um arquivo .txt falso com um CPF, email e telefone. Depois rode
+"reindexar" e pergunte algo sobre esse arquivo.
+
+Esperado: O CPF, email e telefone nao devem aparecer na resposta, pois o ingest.py
+ja anonimiza esses dados.
+
+DICAS FINAIS
+------------
+- Se a resposta estiver fraca, adicione mais transcrioes com aquele cenario.
+- Se a resposta estiver cortada, aumente ligeiramente o chunk_size em ingest.py.
+- Se o assistente nao encontrar contexto, ele ainda responde, mas de forma mais
+generica. Isso e normal.

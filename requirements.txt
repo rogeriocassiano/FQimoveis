@@ -1,0 +1,14 @@
+langchain
+langchain-core
+langchain-community
+langchain-ollama
+langchain-openai
+langchain-text-splitters
+chromadb
+python-dotenv
+pydantic
+requests
+beautifulsoup4
+sentence-transformers
+streamlit==1.61.1
+starlette==1.3.1

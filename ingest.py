@@ -1,0 +1,149 @@
+import os
+import re
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+
+from llm_config import get_embeddings
+
+load_dotenv()
+
+TRANSCRICOES_DIR = Path("./transcricoes")
+CHROMA_DIR = Path("./chroma_db")
+
+
+def buscar_conteudo_url(url: str) -> tuple[str, str]:
+    """Faz o download de uma página e retorna (título, texto limpo)."""
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/115.0.0.0 Safari/537.36"
+        )
+    }
+    resposta = requests.get(url, headers=headers, timeout=30)
+    resposta.raise_for_status()
+
+    soup = BeautifulSoup(resposta.content, "html.parser")
+
+    titulo = soup.title.get_text(strip=True) if soup.title else "Sem título"
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+
+    texto = soup.get_text(separator="\n", strip=True)
+    linhas = [linha for linha in texto.splitlines() if linha.strip()]
+    texto_limpo = "\n\n".join(linhas)
+    return titulo, texto_limpo
+
+
+def adicionar_fonte_web(url: str, nome_arquivo: str | None = None) -> str:
+    """Baixa o conteúdo de uma URL, salva em transcricoes/ e retorna o caminho salvo."""
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    titulo, conteudo = buscar_conteudo_url(url)
+
+    if not nome_arquivo:
+        nome_arquivo = urlparse(url).netloc or "fonte_web"
+    nome_arquivo = re.sub(r"[^\w\-_.]", "_", nome_arquivo)
+    if not nome_arquivo.endswith(".txt"):
+        nome_arquivo += ".txt"
+
+    caminho = TRANSCRICOES_DIR / nome_arquivo
+    prefixo = f"Fonte: {url}\nTítulo: {titulo}\n\n"
+    caminho.write_text(prefixo + conteudo, encoding="utf-8")
+
+    return str(caminho)
+
+
+def anonimizar(texto: str) -> str:
+    """Aplica anonimização básica de dados sensíveis no texto."""
+    # CPF: 000.000.000-00 ou 00000000000
+    texto = re.sub(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b", "[CPF_OCULTO]", texto)
+    # Números de cartão de crédito (4 grupos de 4 dígitos)
+    texto = re.sub(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b", "[CARTAO_OCULTO]", texto)
+    # Dados bancários genéricos
+    texto = re.sub(r"\b(agência|conta)\s*[:\-]?\s*\d+[\-?\d/Xx]*", r"[DADO_BANCARIO_OCULTO]", texto, flags=re.IGNORECASE)
+    # E-mails
+    texto = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL_OCULTO]", texto)
+    # Telefones brasileiros comuns
+    texto = re.sub(r"\b(?:\(?\d{2}\)?[\s-]?)?\d{4,5}[\s-]?\d{4}\b", "[TELEFONE_OCULTO]", texto)
+    # Senhas
+    texto = re.sub(r"\b(senha|password|pin)\s*[:\-]?\s*\S+", r"[SENHA_OCULTA]", texto, flags=re.IGNORECASE)
+    return texto
+
+
+def listar_arquivos_txt(diretorio: Path) -> list[Path]:
+    return sorted(diretorio.glob("*.txt"))
+
+
+def carregar_documentos(caminhos: list[Path]) -> list[str]:
+    documentos = []
+    for caminho in caminhos:
+        try:
+            with caminho.open("r", encoding="utf-8") as f:
+                texto = f.read()
+            texto = anonimizar(texto)
+            documentos.append(texto)
+        except Exception as e:
+            print(f"Erro ao ler {caminho}: {e}")
+    return documentos
+
+
+def processar_e_indexar():
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"Diretório {TRANSCRICOES_DIR} criado. Adicione arquivos .txt e execute novamente.")
+        return
+
+    arquivos = listar_arquivos_txt(TRANSCRICOES_DIR)
+    if not arquivos:
+        print(f"Nenhum arquivo .txt encontrado em {TRANSCRICOES_DIR}.")
+        return
+
+    print(f"Encontrados {len(arquivos)} arquivo(s) para ingestão.")
+    textos = carregar_documentos(arquivos)
+
+    if not textos:
+        print("Nenhum texto carregado. Verifique os arquivos.")
+        return
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=600,
+        chunk_overlap=120,
+        length_function=len,
+        separators=["\n\n", "\n", ".", ",", " ", ""],
+    )
+
+    chunks = []
+    metadatas = []
+    for arquivo, texto in zip(arquivos, textos):
+        chunks_do_arquivo = text_splitter.split_text(texto)
+        for i, chunk in enumerate(chunks_do_arquivo):
+            chunks.append(chunk)
+            metadatas.append({"source": str(arquivo), "chunk_index": i})
+
+    if not chunks:
+        print("Nenhum chunk gerado.")
+        return
+
+    print(f"Gerados {len(chunks)} chunks.")
+
+    embeddings = get_embeddings()
+
+    Chroma.from_texts(
+        texts=chunks,
+        embedding=embeddings,
+        metadatas=metadatas,
+        persist_directory=str(CHROMA_DIR),
+    )
+    print(f"Base vetorial persistida em {CHROMA_DIR}.")
+
+
+if __name__ == "__main__":
+    processar_e_indexar()
