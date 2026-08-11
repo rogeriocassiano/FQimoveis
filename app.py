@@ -7,7 +7,15 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from cli import carregar_base_vetorial, responder_com_fontes
-from ingest import adicionar_fonte_web, adicionar_fonte_pdf, adicionar_fonte_texto, adicionar_fonte_imagem, processar_e_indexar
+from ingest import (
+    adicionar_fonte_web,
+    adicionar_fonte_pdf,
+    adicionar_fonte_texto,
+    adicionar_fonte_imagem,
+    adicionar_fonte_audio,
+    adicionar_fonte_localizacao,
+    processar_e_indexar,
+)
 from llm_config import ambiente_configurado
 import supabase_client
 
@@ -179,7 +187,9 @@ with tab_chat:
 # --- Aba Fontes ---
 with tab_fontes:
     st.subheader("Adicionar contexto ao assistente")
-    tab_web, tab_pdf, tab_imagem, tab_texto = st.tabs(["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "📝 Texto livre"])
+    tab_web, tab_pdf, tab_imagem, tab_audio, tab_local, tab_texto = st.tabs(
+        ["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "🎤 Áudio", "� Localização", "�📝 Texto livre"]
+    )
 
     with tab_web:
         with st.form("form_adicionar_url", clear_on_submit=True):
@@ -219,6 +229,43 @@ with tab_fontes:
                     st.success(f"Descrição salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
                 except Exception as e:
                     st.error(f"Erro ao processar imagem: {e}")
+
+    with tab_audio:
+        st.caption("Grave um áudio (funciona também no celular, abrindo esta mesma página no navegador).")
+        audio_gravado = st.audio_input("Gravar áudio")
+        if audio_gravado is not None and st.button("Adicionar áudio", use_container_width=True):
+            with st.spinner("Transcrevendo áudio com Gemini..."):
+                try:
+                    nome_audio = f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+                    caminho_salvo = adicionar_fonte_audio(nome_audio, audio_gravado.getvalue(), audio_gravado.type or "audio/wav")
+                    st.success(f"Transcrição salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
+                except Exception as e:
+                    st.error(f"Erro ao processar áudio: {e}")
+
+    with tab_local:
+        st.caption("Capture sua localização atual (peça permissão do navegador) para usar como contexto.")
+        try:
+            from streamlit_js_eval import get_geolocation
+
+            localizacao = get_geolocation()
+        except Exception:
+            localizacao = None
+            st.warning("Componente de geolocalização não disponível. Instale `streamlit-js-eval`.")
+
+        if localizacao:
+            if "error" in localizacao:
+                st.error(f"Erro ao obter localização: {localizacao['error'].get('message')}")
+            else:
+                lat = localizacao["coords"]["latitude"]
+                lon = localizacao["coords"]["longitude"]
+                st.success(f"Localização detectada: {lat}, {lon}")
+                obs_local = st.text_input("Observação (opcional)", placeholder="ex: visita ao cliente X", key="obs_local")
+                if st.button("Salvar localização como contexto", use_container_width=True):
+                    try:
+                        caminho_salvo = adicionar_fonte_localizacao(lat, lon, obs_local or None)
+                        st.success(f"Localização salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar localização: {e}")
 
     with tab_texto:
         with st.form("form_adicionar_texto", clear_on_submit=True):

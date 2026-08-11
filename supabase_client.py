@@ -112,29 +112,43 @@ def carregar_transcricoes() -> list[tuple[str, str]]:
 
 
 IMAGENS_BUCKET = "images"
+AUDIOS_BUCKET = "audios"
 
 
-def salvar_imagem(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[str]:
-    """Envia a imagem para o Supabase Storage e retorna a URL pública.
-
-    Requer um bucket público chamado 'imagens' criado no painel do Supabase
-    (Storage → New bucket → Public bucket).
-    """
+def _salvar_arquivo_storage(bucket: str, nome_arquivo: str, conteudo_bytes: bytes, mime_type: str) -> Optional[str]:
     if not ativo():
         return None
 
     client = _get_client()
     try:
         caminho_remoto = f"{Path(nome_arquivo).stem}_{os.urandom(4).hex()}{Path(nome_arquivo).suffix}"
-        client.storage.from_(IMAGENS_BUCKET).upload(
+        client.storage.from_(bucket).upload(
             caminho_remoto,
             conteudo_bytes,
             {"content-type": mime_type},
         )
-        return client.storage.from_(IMAGENS_BUCKET).get_public_url(caminho_remoto)
+        return client.storage.from_(bucket).get_public_url(caminho_remoto)
     except Exception as e:
-        print(f"Erro ao salvar imagem no Supabase Storage: {e}")
+        print(f"Erro ao salvar arquivo no Supabase Storage ({bucket}): {e}")
         return None
+
+
+def salvar_imagem(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[str]:
+    """Envia a imagem para o Supabase Storage e retorna a URL pública.
+
+    Requer um bucket público chamado 'images' criado no painel do Supabase
+    (Storage → New bucket → Public bucket).
+    """
+    return _salvar_arquivo_storage(IMAGENS_BUCKET, nome_arquivo, conteudo_bytes, mime_type)
+
+
+def salvar_audio(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "audio/wav") -> Optional[str]:
+    """Envia o áudio para o Supabase Storage e retorna a URL pública.
+
+    Requer um bucket público chamado 'audios' criado no painel do Supabase
+    (Storage → New bucket → Public bucket).
+    """
+    return _salvar_arquivo_storage(AUDIOS_BUCKET, nome_arquivo, conteudo_bytes, mime_type)
 
 
 def salvar_transcricao(name: str, content: str, source_url: str | None = None):

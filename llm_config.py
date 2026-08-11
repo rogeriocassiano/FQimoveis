@@ -125,6 +125,34 @@ def descrever_imagem(imagem_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     return resposta.text
 
 
+def transcrever_audio(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
+    """Usa o Gemini para transcrever/resumir o conteúdo de um áudio.
+
+    Requer GOOGLE_API_KEY configurada, independentemente do LLM_PROVIDER escolhido.
+    """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Para adicionar áudios é necessário configurar GOOGLE_API_KEY "
+            "(usada pelo Gemini para transcrever o áudio)."
+        )
+
+    import google.generativeai as genai
+
+    genai.configure(api_key=api_key)
+    modelo = genai.GenerativeModel(os.getenv("GOOGLE_AUDIO_MODEL", "gemini-1.5-flash"))
+
+    prompt = (
+        "Transcreva literalmente a fala contida neste áudio, em português. "
+        "Se houver ruído ou trechos incompreensíveis, indique com [inaudível]."
+    )
+    resposta = modelo.generate_content([
+        {"mime_type": mime_type, "data": audio_bytes},
+        prompt,
+    ])
+    return resposta.text
+
+
 def ambiente_configurado() -> tuple[bool, str]:
     """Verifica se há configuração mínima para rodar (local ou nuvem)."""
     llm_provider = os.getenv("LLM_PROVIDER", "ollama").lower()

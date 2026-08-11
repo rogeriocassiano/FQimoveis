@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
-from llm_config import get_embeddings, descrever_imagem
+from llm_config import get_embeddings, descrever_imagem, transcrever_audio
 import supabase_client
 
 load_dotenv()
@@ -116,6 +116,54 @@ def adicionar_fonte_imagem(nome_arquivo: str, conteudo_bytes: bytes, mime_type: 
 
     url_imagem = supabase_client.salvar_imagem(nome_arquivo, conteudo_bytes, mime_type)
     supabase_client.salvar_transcricao(nome_final, prefixo + descricao, url_imagem)
+
+    return str(caminho)
+
+
+def adicionar_fonte_audio(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "audio/wav") -> str:
+    """Transcreve um áudio via Gemini, salva a transcrição em transcricoes/ e
+    o áudio original no Supabase Storage (se configurado)."""
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    transcricao = transcrever_audio(conteudo_bytes, mime_type)
+
+    nome_base = re.sub(r"[^\w\-_.]", "_", Path(nome_arquivo).stem)
+    nome_final = f"{nome_base}.txt"
+
+    caminho = TRANSCRICOES_DIR / nome_final
+    prefixo = f"Fonte: Áudio ({nome_arquivo})\n\n"
+    caminho.write_text(prefixo + transcricao, encoding="utf-8")
+
+    url_audio = supabase_client.salvar_audio(nome_arquivo, conteudo_bytes, mime_type)
+    supabase_client.salvar_transcricao(nome_final, prefixo + transcricao, url_audio)
+
+    return str(caminho)
+
+
+def adicionar_fonte_localizacao(latitude: float, longitude: float, descricao: str | None = None) -> str:
+    """Registra uma localização (lat/lon) como fonte de contexto."""
+    from datetime import datetime
+
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    agora = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome_final = f"localizacao_{agora}.txt"
+
+    link_mapa = f"https://www.google.com/maps?q={latitude},{longitude}"
+    conteudo = (
+        f"Fonte: Localização registrada em {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+        f"Coordenadas: {latitude}, {longitude}\n"
+        f"Mapa: {link_mapa}\n"
+    )
+    if descricao:
+        conteudo += f"Observação: {descricao}\n"
+
+    caminho = TRANSCRICOES_DIR / nome_final
+    caminho.write_text(conteudo, encoding="utf-8")
+
+    supabase_client.salvar_transcricao(nome_final, conteudo, link_mapa)
 
     return str(caminho)
 
