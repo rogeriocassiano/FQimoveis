@@ -188,22 +188,36 @@ with tab_chat:
 with tab_fontes:
     st.subheader("Adicionar contexto ao assistente")
     tab_web, tab_pdf, tab_imagem, tab_audio, tab_local, tab_texto = st.tabs(
-        ["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "🎤 Áudio", "� Localização", "�📝 Texto livre"]
+        ["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "🎤 Áudio", "📍 Localização", "📝 Texto livre"]
     )
 
     with tab_web:
+        st.caption("Adicione uma ou várias URLs (uma por linha) para buscar o conteúdo de cada página.")
         with st.form("form_adicionar_url", clear_on_submit=True):
-            url_input = st.text_input("URL do site", placeholder="https://exemplo.com/pagina")
-            nome_input = st.text_input("Nome do arquivo (opcional)", placeholder="ex: mercado_imobiliario")
+            urls_input = st.text_area(
+                "URL(s) do site",
+                placeholder="https://exemplo.com/pagina-1\nhttps://exemplo.com/pagina-2",
+                height=120,
+            )
             enviar = st.form_submit_button("Buscar e adicionar")
 
-        if enviar and url_input:
-            with st.spinner("Buscando conteúdo da URL..."):
-                try:
-                    caminho_salvo = adicionar_fonte_web(url_input, nome_input or None)
-                    st.success(f"Conteúdo salvo em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-lo na base.")
-                except Exception as e:
-                    st.error(f"Erro ao buscar URL: {e}")
+        if enviar and urls_input:
+            urls = [u.strip() for u in urls_input.splitlines() if u.strip()]
+            sucessos, erros = [], []
+            with st.spinner(f"Buscando conteúdo de {len(urls)} URL(s)..."):
+                for url in urls:
+                    try:
+                        caminho_salvo = adicionar_fonte_web(url)
+                        sucessos.append((url, caminho_salvo))
+                    except Exception as e:
+                        erros.append((url, str(e)))
+
+            if sucessos:
+                st.success(f"{len(sucessos)} URL(s) adicionada(s) com sucesso. Clique em **Reindexar transcrições** na barra lateral para incluí-las na base.")
+                for url, caminho in sucessos:
+                    st.caption(f"✅ `{url}` → `{caminho}`")
+            for url, erro in erros:
+                st.error(f"❌ `{url}`: {erro}")
 
     with tab_pdf:
         arquivo_pdf = st.file_uploader("Envie um PDF (livro, apostila, manual, etc.)", type=["pdf"])
@@ -244,28 +258,41 @@ with tab_fontes:
 
     with tab_local:
         st.caption("Capture sua localização atual (peça permissão do navegador) para usar como contexto.")
+
+        lat, lon = None, None
+        localizacao = None
         try:
             from streamlit_js_eval import get_geolocation
 
             localizacao = get_geolocation()
-        except Exception:
-            localizacao = None
-            st.warning("Componente de geolocalização não disponível. Instale `streamlit-js-eval`.")
+        except Exception as e:
+            st.info(f"Captura automática indisponível ({e}). Use os campos manuais abaixo.")
 
-        if localizacao:
-            if "error" in localizacao:
-                st.error(f"Erro ao obter localização: {localizacao['error'].get('message')}")
+        if localizacao and "error" not in localizacao:
+            lat = localizacao["coords"]["latitude"]
+            lon = localizacao["coords"]["longitude"]
+            st.success(f"Localização detectada automaticamente: {lat}, {lon}")
+        elif localizacao and "error" in localizacao:
+            st.warning(f"Erro ao obter localização automática: {localizacao['error'].get('message')}. Use os campos manuais abaixo.")
+
+        with st.expander("Ou informe manualmente", expanded=lat is None):
+            col_lat, col_lon = st.columns(2)
+            lat_manual = col_lat.number_input("Latitude", value=lat or 0.0, format="%.6f", key="lat_manual")
+            lon_manual = col_lon.number_input("Longitude", value=lon or 0.0, format="%.6f", key="lon_manual")
+
+        lat_final = lat if lat is not None else lat_manual
+        lon_final = lon if lon is not None else lon_manual
+
+        obs_local = st.text_input("Observação (opcional)", placeholder="ex: visita ao cliente X", key="obs_local")
+        if st.button("Salvar localização como contexto", use_container_width=True):
+            if not lat_final and not lon_final:
+                st.error("Informe uma latitude/longitude válida.")
             else:
-                lat = localizacao["coords"]["latitude"]
-                lon = localizacao["coords"]["longitude"]
-                st.success(f"Localização detectada: {lat}, {lon}")
-                obs_local = st.text_input("Observação (opcional)", placeholder="ex: visita ao cliente X", key="obs_local")
-                if st.button("Salvar localização como contexto", use_container_width=True):
-                    try:
-                        caminho_salvo = adicionar_fonte_localizacao(lat, lon, obs_local or None)
-                        st.success(f"Localização salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
-                    except Exception as e:
-                        st.error(f"Erro ao salvar localização: {e}")
+                try:
+                    caminho_salvo = adicionar_fonte_localizacao(lat_final, lon_final, obs_local or None)
+                    st.success(f"Localização salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
+                except Exception as e:
+                    st.error(f"Erro ao salvar localização: {e}")
 
     with tab_texto:
         with st.form("form_adicionar_texto", clear_on_submit=True):
