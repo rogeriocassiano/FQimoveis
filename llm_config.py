@@ -96,6 +96,35 @@ def get_chat_llm(temperature: float = 0.2):
     )
 
 
+def descrever_imagem(imagem_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """Usa o Gemini Vision para descrever/transcrever o conteúdo de uma imagem.
+
+    Requer GOOGLE_API_KEY configurada, independentemente do LLM_PROVIDER escolhido.
+    """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Para adicionar imagens é necessário configurar GOOGLE_API_KEY "
+            "(usada pelo Gemini Vision para descrever a imagem)."
+        )
+
+    import google.generativeai as genai
+
+    genai.configure(api_key=api_key)
+    modelo = genai.GenerativeModel(os.getenv("GOOGLE_VISION_MODEL", "gemini-1.5-flash"))
+
+    prompt = (
+        "Descreva detalhadamente o conteúdo desta imagem. Se houver texto na imagem, "
+        "transcreva-o literalmente. Se for um gráfico, tabela ou documento, explique "
+        "as informações apresentadas."
+    )
+    resposta = modelo.generate_content([
+        {"mime_type": mime_type, "data": imagem_bytes},
+        prompt,
+    ])
+    return resposta.text
+
+
 def ambiente_configurado() -> tuple[bool, str]:
     """Verifica se há configuração mínima para rodar (local ou nuvem)."""
     llm_provider = os.getenv("LLM_PROVIDER", "ollama").lower()

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
-from llm_config import get_embeddings
+from llm_config import get_embeddings, descrever_imagem
 import supabase_client
 
 load_dotenv()
@@ -95,6 +95,27 @@ def adicionar_fonte_pdf(nome_arquivo: str, conteudo_bytes: bytes) -> str:
     caminho.write_text(prefixo + texto, encoding="utf-8")
 
     supabase_client.salvar_transcricao(nome_final, prefixo + texto, None)
+
+    return str(caminho)
+
+
+def adicionar_fonte_imagem(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """Descreve/transcreve uma imagem via Gemini Vision, salva a descrição em
+    transcricoes/ e a imagem original no Supabase Storage (se configurado)."""
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    descricao = descrever_imagem(conteudo_bytes, mime_type)
+
+    nome_base = re.sub(r"[^\w\-_.]", "_", Path(nome_arquivo).stem)
+    nome_final = f"{nome_base}.txt"
+
+    caminho = TRANSCRICOES_DIR / nome_final
+    prefixo = f"Fonte: Imagem ({nome_arquivo})\n\n"
+    caminho.write_text(prefixo + descricao, encoding="utf-8")
+
+    url_imagem = supabase_client.salvar_imagem(nome_arquivo, conteudo_bytes, mime_type)
+    supabase_client.salvar_transcricao(nome_final, prefixo + descricao, url_imagem)
 
     return str(caminho)
 

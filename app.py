@@ -7,7 +7,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from cli import carregar_base_vetorial, responder_com_fontes
-from ingest import adicionar_fonte_web, adicionar_fonte_pdf, adicionar_fonte_texto, processar_e_indexar
+from ingest import adicionar_fonte_web, adicionar_fonte_pdf, adicionar_fonte_texto, adicionar_fonte_imagem, processar_e_indexar
 from llm_config import ambiente_configurado
 import supabase_client
 
@@ -179,7 +179,7 @@ with tab_chat:
 # --- Aba Fontes ---
 with tab_fontes:
     st.subheader("Adicionar contexto ao assistente")
-    tab_web, tab_pdf, tab_texto = st.tabs(["🌐 Site", "📄 PDF / Livro", "📝 Texto livre"])
+    tab_web, tab_pdf, tab_imagem, tab_texto = st.tabs(["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "📝 Texto livre"])
 
     with tab_web:
         with st.form("form_adicionar_url", clear_on_submit=True):
@@ -204,6 +204,21 @@ with tab_fontes:
                     st.success(f"Conteúdo salvo em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-lo na base.")
                 except Exception as e:
                     st.error(f"Erro ao processar PDF: {e}")
+
+    with tab_imagem:
+        arquivo_imagem = st.file_uploader(
+            "Envie uma imagem (foto de documento, print, gráfico, etc.)",
+            type=["png", "jpg", "jpeg", "webp"],
+        )
+        if arquivo_imagem is not None and st.button("Adicionar imagem", use_container_width=True):
+            with st.spinner("Analisando imagem com Gemini Vision..."):
+                try:
+                    caminho_salvo = adicionar_fonte_imagem(
+                        arquivo_imagem.name, arquivo_imagem.getvalue(), arquivo_imagem.type or "image/jpeg"
+                    )
+                    st.success(f"Descrição salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
+                except Exception as e:
+                    st.error(f"Erro ao processar imagem: {e}")
 
     with tab_texto:
         with st.form("form_adicionar_texto", clear_on_submit=True):

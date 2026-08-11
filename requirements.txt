@@ -4,6 +4,7 @@ langchain-community
 langchain-ollama
 langchain-openai
 langchain-google-genai
+google-generativeai
 langchain-text-splitters
 chromadb
 python-dotenv

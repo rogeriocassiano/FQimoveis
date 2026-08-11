@@ -111,6 +111,32 @@ def carregar_transcricoes() -> list[tuple[str, str]]:
         return []
 
 
+IMAGENS_BUCKET = "imagens"
+
+
+def salvar_imagem(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[str]:
+    """Envia a imagem para o Supabase Storage e retorna a URL pública.
+
+    Requer um bucket público chamado 'imagens' criado no painel do Supabase
+    (Storage → New bucket → Public bucket).
+    """
+    if not ativo():
+        return None
+
+    client = _get_client()
+    try:
+        caminho_remoto = f"{Path(nome_arquivo).stem}_{os.urandom(4).hex()}{Path(nome_arquivo).suffix}"
+        client.storage.from_(IMAGENS_BUCKET).upload(
+            caminho_remoto,
+            conteudo_bytes,
+            {"content-type": mime_type},
+        )
+        return client.storage.from_(IMAGENS_BUCKET).get_public_url(caminho_remoto)
+    except Exception as e:
+        print(f"Erro ao salvar imagem no Supabase Storage: {e}")
+        return None
+
+
 def salvar_transcricao(name: str, content: str, source_url: str | None = None):
     if not ativo():
         return
