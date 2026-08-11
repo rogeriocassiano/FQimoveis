@@ -111,7 +111,7 @@ def carregar_transcricoes() -> list[tuple[str, str]]:
         return []
 
 
-IMAGENS_BUCKET = "imagens"
+IMAGENS_BUCKET = "images"
 
 
 def salvar_imagem(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[str]:
