@@ -13,6 +13,7 @@ from ingest import (
     adicionar_fonte_texto,
     adicionar_fonte_imagem,
     adicionar_fonte_audio,
+    adicionar_fonte_video,
     adicionar_fonte_localizacao,
     processar_e_indexar,
 )
@@ -187,8 +188,8 @@ with tab_chat:
 # --- Aba Fontes ---
 with tab_fontes:
     st.subheader("Adicionar contexto ao assistente")
-    tab_web, tab_pdf, tab_imagem, tab_audio, tab_local, tab_texto = st.tabs(
-        ["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "🎤 Áudio", "📍 Localização", "📝 Texto livre"]
+    tab_web, tab_pdf, tab_imagem, tab_audio, tab_video, tab_local, tab_texto = st.tabs(
+        ["🌐 Site", "📄 PDF / Livro", "🖼️ Imagem", "🎤 Áudio", "🎬 Vídeo", "📍 Localização", "📝 Texto livre"]
     )
 
     with tab_web:
@@ -255,6 +256,23 @@ with tab_fontes:
                     st.success(f"Transcrição salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
                 except Exception as e:
                     st.error(f"Erro ao processar áudio: {e}")
+
+    with tab_video:
+        st.caption("Envie um vídeo (MP4, MOV, WebM) para ser transcrito/descrito pelo Gemini.")
+        arquivo_video = st.file_uploader(
+            "Escolha um vídeo",
+            type=["mp4", "mov", "webm", "mkv"],
+            accept_multiple_files=False,
+        )
+        if arquivo_video is not None and st.button("Adicionar vídeo", use_container_width=True):
+            with st.spinner("Processando vídeo com Gemini... (pode demorar dependendo do tamanho)"):
+                try:
+                    caminho_salvo = adicionar_fonte_video(
+                        arquivo_video.name, arquivo_video.getvalue(), arquivo_video.type or "video/mp4"
+                    )
+                    st.success(f"Descrição/transcrição salva em `{caminho_salvo}`. Clique em **Reindexar transcrições** na barra lateral para incluí-la na base.")
+                except Exception as e:
+                    st.error(f"Erro ao processar vídeo: {e}")
 
     with tab_local:
         st.caption("Capture sua localização atual (peça permissão do navegador) para usar como contexto.")

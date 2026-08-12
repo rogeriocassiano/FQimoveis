@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
-from llm_config import get_embeddings, descrever_imagem, transcrever_audio
+from llm_config import get_embeddings, descrever_imagem, transcrever_audio, processar_video
 import supabase_client
 
 load_dotenv()
@@ -141,6 +141,27 @@ def adicionar_fonte_audio(nome_arquivo: str, conteudo_bytes: bytes, mime_type: s
     return str(caminho)
 
 
+def adicionar_fonte_video(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "video/mp4") -> str:
+    """Processa um vídeo via Gemini, salva a transcrição/descritivo em transcricoes/ e
+    o vídeo original no Supabase Storage (se configurado)."""
+    if not TRANSCRICOES_DIR.exists():
+        TRANSCRICOES_DIR.mkdir(parents=True, exist_ok=True)
+
+    descricao = processar_video(conteudo_bytes, mime_type)
+
+    nome_base = re.sub(r"[^\w\-_.]", "_", Path(nome_arquivo).stem)
+    nome_final = f"{nome_base}.txt"
+
+    caminho = TRANSCRICOES_DIR / nome_final
+    prefixo = f"Fonte: Vídeo ({nome_arquivo})\n\n"
+    caminho.write_text(prefixo + descricao, encoding="utf-8")
+
+    url_video = supabase_client.salvar_video(nome_arquivo, conteudo_bytes, mime_type)
+    supabase_client.salvar_transcricao(nome_final, prefixo + descricao, url_video)
+
+    return str(caminho)
+
+
 def adicionar_fonte_localizacao(latitude: float, longitude: float, descricao: str | None = None) -> str:
     """Registra uma localização (lat/lon) como fonte de contexto."""
     from datetime import datetime
@@ -260,12 +281,33 @@ def processar_e_indexar():
 
     embeddings = get_embeddings()
 
-    Chroma.from_texts(
-        texts=chunks,
-        embedding=embeddings,
-        metadatas=metadatas,
+    try:
+        _ = embeddings.embed_query("teste")
+    except Exception as e:
+        print(f"Erro ao testar embedding: {e}")
+        raise RuntimeError(
+            "Falha ao conectar com a API de embeddings do Gemini. "
+            "Verifique se GOOGLE_API_KEY está ativa e se o modelo de embedding está disponível. "
+            f"Erro original: {e}"
+        ) from e
+
+    if CHROMA_DIR.exists():
+        import shutil
+        shutil.rmtree(CHROMA_DIR)
+
+    vectorstore = Chroma(
         persist_directory=str(CHROMA_DIR),
+        embedding_function=embeddings,
     )
+
+    batch_size = 20
+    for i in range(0, len(chunks), batch_size):
+        batch_texts = chunks[i : i + batch_size]
+        batch_metadatas = metadatas[i : i + batch_size]
+        vectorstore.add_texts(texts=batch_texts, metadatas=batch_metadatas)
+        print(f"Indexados {min(i + batch_size, len(chunks))} de {len(chunks)} chunks...")
+
+    vectorstore.persist()
     print(f"Base vetorial persistida em {CHROMA_DIR}.")
 
 

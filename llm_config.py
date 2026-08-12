@@ -153,6 +153,35 @@ def transcrever_audio(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
     return resposta.text
 
 
+def processar_video(video_bytes: bytes, mime_type: str = "video/mp4") -> str:
+    """Usa o Gemini para transcrever/descricao o conteúdo de um vídeo.
+
+    Requer GOOGLE_API_KEY configurada, independentemente do LLM_PROVIDER escolhido.
+    """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Para adicionar vídeos é necessário configurar GOOGLE_API_KEY "
+            "(usada pelo Gemini para processar o vídeo)."
+        )
+
+    import google.generativeai as genai
+
+    genai.configure(api_key=api_key)
+    modelo = genai.GenerativeModel(os.getenv("GOOGLE_VIDEO_MODEL", "gemini-1.5-flash"))
+
+    prompt = (
+        "Transcreva e descreva o conteúdo deste vídeo de forma detalhada. "
+        "Se houver fala, transcreva-a literalmente em português. "
+        "Se houver texto na tela, transcreva-o. Descreva também ações, cenas e objetos importantes."
+    )
+    resposta = modelo.generate_content([
+        {"mime_type": mime_type, "data": video_bytes},
+        prompt,
+    ])
+    return resposta.text
+
+
 def ambiente_configurado() -> tuple[bool, str]:
     """Verifica se há configuração mínima para rodar (local ou nuvem)."""
     llm_provider = os.getenv("LLM_PROVIDER", "ollama").lower()

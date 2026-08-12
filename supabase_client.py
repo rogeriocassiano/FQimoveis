@@ -113,6 +113,7 @@ def carregar_transcricoes() -> list[tuple[str, str]]:
 
 IMAGENS_BUCKET = "images"
 AUDIOS_BUCKET = "audios"
+VIDEOS_BUCKET = "videos"
 
 
 def _salvar_arquivo_storage(bucket: str, nome_arquivo: str, conteudo_bytes: bytes, mime_type: str) -> Optional[str]:
@@ -149,6 +150,15 @@ def salvar_audio(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "aud
     (Storage → New bucket → Public bucket).
     """
     return _salvar_arquivo_storage(AUDIOS_BUCKET, nome_arquivo, conteudo_bytes, mime_type)
+
+
+def salvar_video(nome_arquivo: str, conteudo_bytes: bytes, mime_type: str = "video/mp4") -> Optional[str]:
+    """Envia o vídeo para o Supabase Storage e retorna a URL pública.
+
+    Requer um bucket público chamado 'videos' criado no painel do Supabase
+    (Storage → New bucket → Public bucket).
+    """
+    return _salvar_arquivo_storage(VIDEOS_BUCKET, nome_arquivo, conteudo_bytes, mime_type)
 
 
 def salvar_transcricao(name: str, content: str, source_url: str | None = None):
