@@ -281,13 +281,19 @@ def processar_e_indexar():
 
     embeddings = get_embeddings()
 
-    print("Testando conexão com API de embeddings...")
+    print("Testando conexão com API de embeddings do Gemini...")
     try:
         _ = embeddings.embed_query("teste")
         print("Conexão com embeddings OK.")
     except Exception as e:
-        print(f"AVISO: Teste de embedding falhou: {e}")
-        print("Continuando mesmo assim... (o erro pode ocorrer na indexação)")
+        print(f"ERRO CRÍTICO: Teste de embedding falhou: {e}")
+        print("Verifique:")
+        print("1. GOOGLE_API_KEY está correta nos Secrets do Streamlit Cloud")
+        print("2. A chave tem permissão para Generative Language API no Google Cloud Console")
+        print("3. O modelo models/text-embedding-004 está disponível")
+        raise RuntimeError(
+            f"Falha ao conectar com API de embeddings do Gemini: {e}"
+        )
 
     if CHROMA_DIR.exists():
         import shutil
