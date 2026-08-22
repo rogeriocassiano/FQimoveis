@@ -298,12 +298,16 @@ def processar_e_indexar():
         embedding_function=embeddings,
     )
 
-    batch_size = 20
+    batch_size = 10
     for i in range(0, len(chunks), batch_size):
         batch_texts = chunks[i : i + batch_size]
         batch_metadatas = metadatas[i : i + batch_size]
-        vectorstore.add_texts(texts=batch_texts, metadatas=batch_metadatas)
-        print(f"Indexados {min(i + batch_size, len(chunks))} de {len(chunks)} chunks...")
+        try:
+            vectorstore.add_texts(texts=batch_texts, metadatas=batch_metadatas)
+            print(f"Indexados {min(i + batch_size, len(chunks))} de {len(chunks)} chunks...")
+        except Exception as e:
+            print(f"Erro ao indexar batch {i}: {e}")
+            raise
 
     vectorstore.persist()
     print(f"Base vetorial persistida em {CHROMA_DIR}.")
