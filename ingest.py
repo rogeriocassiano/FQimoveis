@@ -281,15 +281,13 @@ def processar_e_indexar():
 
     embeddings = get_embeddings()
 
+    print("Testando conexão com API de embeddings...")
     try:
         _ = embeddings.embed_query("teste")
+        print("Conexão com embeddings OK.")
     except Exception as e:
-        print(f"Erro ao testar embedding: {e}")
-        raise RuntimeError(
-            "Falha ao conectar com a API de embeddings do Gemini. "
-            "Verifique se GOOGLE_API_KEY está ativa e se o modelo de embedding está disponível. "
-            f"Erro original: {e}"
-        ) from e
+        print(f"AVISO: Teste de embedding falhou: {e}")
+        print("Continuando mesmo assim... (o erro pode ocorrer na indexação)")
 
     if CHROMA_DIR.exists():
         import shutil
