@@ -42,7 +42,7 @@ def get_embeddings():
                 "EMBEDDING_PROVIDER=gemini, mas GOOGLE_API_KEY não foi configurada. "
                 "Adicione a chave no .env ou nos Secrets do Streamlit Cloud."
             )
-        modelo = os.getenv("GOOGLE_EMBEDDING_MODEL", "models/text-embedding-004")
+        modelo = os.getenv("GOOGLE_EMBEDDING_MODEL", "text-embedding-004")
         return GoogleGenerativeAIEmbeddings(model=modelo, google_api_key=api_key)
 
     from langchain_ollama import OllamaEmbeddings
